@@ -10,11 +10,9 @@ pyglet.resource.reindex()
 
 WINDOW_W = 1920
 WINDOW_H = 1080
-WINDOW_W = 920
-WINDOW_H = 580
 
-BOX_W = 500
-BOX_H = 300
+BOX_W = 460
+BOX_H = 340
 BOX_X = WINDOW_W - BOX_W
 BOX_Y = 0
 
@@ -28,8 +26,8 @@ def center_image(image):
     image.anchor_y = image.height // 2
 
 
-window = pyglet.window.Window(WINDOW_W, WINDOW_H)
-# window = pyglet.window.Window(WINDOW_W, WINDOW_H, fullscreen=True)
+# window = pyglet.window.Window(WINDOW_W, WINDOW_H)
+window = pyglet.window.Window(WINDOW_W, WINDOW_H, fullscreen=True)
 pyglet.gl.glClearColor(0, 0, 0, 1)
 
 # sun_image = pyglet.resource.image("sun.png")
@@ -58,7 +56,8 @@ count_label = pyglet.text.Label(
 )
 
 fps_display = pyglet.window.FPSDisplay(window)
-red_box = pyglet.shapes.Rectangle(BOX_X, BOX_Y, BOX_W, BOX_H, color=(200, 30, 30))
+bg = pyglet.shapes.Rectangle(0, 0, window.width, window.height, color=(0, 0, 255))
+red_box = pyglet.shapes.Rectangle(BOX_X, BOX_Y, BOX_W, BOX_H, color=(0, 0, 255))
 batch = pyglet.graphics.Batch()
 
 
@@ -154,9 +153,20 @@ def update(dt):
 
 
 pyglet.clock.schedule_interval(update, 1 / 60.0)
-pyglet.clock.schedule_interval(spawn_sun, 1.0)
+pyglet.clock.schedule_interval(spawn_sun, 60 * 10)
+spawn_sun(0)
 
-bg = pyglet.shapes.Rectangle(0, 0, window.width, window.height, color=(0, 0, 255))
+
+@window.event
+def on_key_press(symbol, modifiers):
+    match symbol:
+        case pyglet.window.key.BACKSPACE:
+            suns[-1].sprite.delete()
+            suns.pop()
+        case pyglet.window.key.SPACE:
+            spawn_sun(0)
+        case _:
+            pass
 
 
 @window.event
