@@ -4,46 +4,39 @@ import time
 
 import pyglet
 
-# SETTINGS
+
+# SETTINGS 
+
 pyglet.resource.path = ["resources"]
 pyglet.resource.reindex()
 
 WINDOW_W = 1920
 WINDOW_H = 1080
 
+# in pixels per second
+SUN_SPEED = 150          
+# seconds between automatic spawns
+AUTO_SPAWN_SUN = 0.01   
+
+# streamer box
 BOX_W = 460
 BOX_H = 340
 BOX_X = WINDOW_W - BOX_W
 BOX_Y = 0
 
-SUN_SPEED = 150
 
-FRAME_DURATION = 0.1  # seconds per animation frame
+# WINDOW 
 
-
-def center_image(image):
-    image.anchor_x = image.width // 2
-    image.anchor_y = image.height // 2
-
-
-# window = pyglet.window.Window(WINDOW_W, WINDOW_H)
 window = pyglet.window.Window(WINDOW_W, WINDOW_H, fullscreen=True)
-pyglet.gl.glClearColor(0, 0, 0, 1)
 
-# sun_image = pyglet.resource.image("sun.png")
-# sun_grid = pyglet.image.ImageGrid(sun_image, 2, 3)
-sun_image = pyglet.resource.image("sun2.png")
-sun_grid = pyglet.image.ImageGrid(sun_image, 1, 6)
+# SHAPES
 
-# Center each frame's anchor point
-for frame in sun_grid:
-    center_image(frame)
+background = pyglet.shapes.Rectangle(0, 0, WINDOW_W, WINDOW_H, color=(0, 0, 255))
+red_box = pyglet.shapes.Rectangle(BOX_X, BOX_Y, BOX_W, BOX_H, color=(0, 0, 255))
 
-# Build a proper Animation from all 15 frames
-sun_animation = pyglet.image.animation.Animation.from_image_sequence(
-    sun_grid, duration=FRAME_DURATION, loop=True
-)
+# TEXT 
 
+fps_display = pyglet.window.FPSDisplay(window)
 count_label = pyglet.text.Label(
     "",
     font_name="Arial",
@@ -55,129 +48,128 @@ count_label = pyglet.text.Label(
     color=(255, 255, 255, 255),
 )
 
-fps_display = pyglet.window.FPSDisplay(window)
-bg = pyglet.shapes.Rectangle(0, 0, window.width, window.height, color=(0, 0, 255))
-red_box = pyglet.shapes.Rectangle(BOX_X, BOX_Y, BOX_W, BOX_H, color=(0, 0, 255))
+
+#  SUN
+
+sun_image = pyglet.resource.image("sun2.png")
+sun_grid  = pyglet.image.ImageGrid(sun_image, 1, 6)
+
+for frame in sun_grid:
+    frame.anchor_x = frame.width  // 2
+    frame.anchor_y = frame.height // 2
+
+sun_animation = pyglet.image.animation.Animation.from_image_sequence(
+    sun_grid, duration=0.1, loop=True
+)
+
+
+#  SUNS 
+
+suns = []  # list of sun dicts
+
 batch = pyglet.graphics.Batch()
 
+def make_sun():
+    x = random.uniform(100, WINDOW_W - BOX_W - 100)
+    y = random.uniform(100, WINDOW_H - BOX_H - 100)
 
-class Sun:
-    def __init__(self):
-        angle = random.uniform(0, 2 * math.pi)
-        self.vx = math.cos(angle) * SUN_SPEED
-        self.vy = math.sin(angle) * SUN_SPEED
+    sprite = pyglet.sprite.Sprite(sun_animation, x=x, y=y, batch=batch)
 
-        # Temporary sprite to get dimensions for spawn check
-        self.sprite = pyglet.sprite.Sprite(sun_animation, x=0, y=0, batch=batch)
+    angle = random.uniform(0, 2 * math.pi)
+    vx = math.cos(angle) * SUN_SPEED
+    vy = math.sin(angle) * SUN_SPEED
+    phase = random.randint(1,234) # wobble offset
 
-        while True:
-            x = random.uniform(50, WINDOW_W - 50)
-            y = random.uniform(50, WINDOW_H - 50)
-            if not self._inside_box(x, y):
-                break
-
-        self.sprite.x = x
-        self.sprite.y = y
-
-    def _inside_box(self, x, y):
-        hw = self.sprite.width // 2
-        hh = self.sprite.height // 2
-        return (
-            x + hw > BOX_X
-            and x - hw < BOX_X + BOX_W
-            and y + hh > BOX_Y
-            and y - hh < BOX_Y + BOX_H
-        )
-
-    def _half_w(self):
-        return self.sprite.width // 2
-
-    def _half_h(self):
-        return self.sprite.height // 2
-
-    def update(self, dt):
-        nx = self.sprite.x + self.vx * dt
-        ny = self.sprite.y + self.vy * dt
-
-        hw = self._half_w()
-        hh = self._half_h()
-
-        if nx - hw < 0:
-            nx = hw
-            self.vx = abs(self.vx)
-        elif nx + hw > WINDOW_W:
-            nx = WINDOW_W - hw
-            self.vx = -abs(self.vx)
-
-        if ny - hh < 0:
-            ny = hh
-            self.vy = abs(self.vy)
-        elif ny + hh > WINDOW_H:
-            ny = WINDOW_H - hh
-            self.vy = -abs(self.vy)
-
-        sx, sy = nx, ny
-        if (
-            sx + hw > BOX_X
-            and sx - hw < BOX_X + BOX_W
-            and sy + hh > BOX_Y
-            and sy - hh < BOX_Y + BOX_H
-        ):
-            px, py = self.sprite.x, self.sprite.y
-            overlap_x = min(px + hw - BOX_X, BOX_X + BOX_W - (px - hw))
-            overlap_y = min(py + hh - BOX_Y, BOX_Y + BOX_H - (py - hh))
-
-            if overlap_x < overlap_y:
-                self.vx = -self.vx
-                nx = self.sprite.x
-            else:
-                self.vy = -self.vy
-                ny = self.sprite.y
-
-        self.sprite.x = nx
-        self.sprite.y = ny
-        self.sprite.scale = 1 + 0.2 * math.cos(time.time())
+    return {"sprite": sprite, "vx": vx, "vy": vy, "phase": phase}
 
 
-suns = []
+# we'll call it on a clock so dt has to be provided
+# we attribute it to none to please the linter
+def spawn_sun(dt=None):
+    suns.append(make_sun())
 
 
-def spawn_sun(dt):
-    suns.append(Sun())
+def remove_last_sun():
+    if suns:
+        suns[-1]["sprite"].delete()  # free the sprite from video memory
+        suns.pop()
+
+
+#  UPDATE 
+
+def update_sun(sun, dt):
+    sprite = sun["sprite"]
+
+    nx = sprite.x + sun["vx"] * dt
+    ny = sprite.y + sun["vy"] * dt
+
+    # Start of terrible collision code
+    if nx < 0:
+        sun["vx"] = abs(sun["vx"])      # push right
+    elif nx > WINDOW_W:
+        sun["vx"] = -abs(sun["vx"])     # push left
+
+    if ny < 0:
+        sun["vy"] = abs(sun["vy"])      # push up
+    elif ny > WINDOW_H:
+        sun["vy"] = -abs(sun["vy"])     # push down
+
+    hits_box = (
+        nx > BOX_X           and
+        nx < BOX_X + BOX_W   and
+        ny > BOX_Y           and
+        ny < BOX_Y + BOX_H
+    )
+    if hits_box:
+        if BOX_Y < sun["sprite"].y < BOX_Y + BOX_H:
+            sun["vx"] = -sun["vx"]
+        else:
+            sun["vy"] = -sun["vy"]
+    # End of terrible collision code
+
+    sprite.x = nx
+    sprite.y = ny
+
+    # wobble effect oscillates between 0.8 and 1.2
+    # with added random phase offset
+    sprite.scale = 1 + 0.2 * math.cos(time.time() + sun["phase"])
 
 
 def update(dt):
-    for s in suns:
-        s.update(dt)
+    for sun in suns:
+        update_sun(sun, dt)
     count_label.text = f"Suns: {len(suns)}"
 
 
-pyglet.clock.schedule_interval(update, 1 / 60.0)
-pyglet.clock.schedule_interval(spawn_sun, 60 * 10)
-spawn_sun(0)
+#  CLOCKS 
 
+pyglet.clock.schedule_interval(update, 1 / 60.0)
+
+# auto-spawn a sun every now and then
+pyglet.clock.schedule_interval(spawn_sun, AUTO_SPAWN_SUN)
+
+#  INPUT
 
 @window.event
 def on_key_press(symbol, modifiers):
-    match symbol:
-        case pyglet.window.key.BACKSPACE:
-            suns[-1].sprite.delete()
-            suns.pop()
-        case pyglet.window.key.SPACE:
-            spawn_sun(0)
-        case _:
-            pass
+    if symbol == pyglet.window.key.SPACE:
+        spawn_sun()
+    elif symbol == pyglet.window.key.BACKSPACE:
+        remove_last_sun()
 
+#  DRAW 
 
 @window.event
 def on_draw():
     window.clear()
-    bg.draw()
+    background.draw()
     red_box.draw()
-    batch.draw()
+    batch.draw()       # draws all sun sprites at once
     fps_display.draw()
     count_label.draw()
 
+
+#  RUN
 
 if __name__ == "__main__":
     pyglet.app.run()
